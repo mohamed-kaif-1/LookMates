@@ -1,7 +1,7 @@
 
 <div align="center">
 
-<img src="docs/images/lookmates-banner.svg" width="100%" alt="LookMates" />
+<img src="lookmates-readme-bundle/docs/images/lookmates-banner.svg" width="100%" alt="LookMates" />
 
 <br />
 
