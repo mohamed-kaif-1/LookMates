@@ -1,229 +1,236 @@
 
 <div align="center">
 
-<img src="docs/images/lookmates-banner.svg" alt="LookMates — Find Your Fit. Match Your Vibe." width="100%" />
+<img src="docs/images/lookmates-banner.svg" width="100%" alt="LookMates" />
 
-# LOOKMATES
+<br />
 
-### Find Your Fit. Match Your Vibe.
+# LOOKMATES®
 
-**AI-powered virtual try-on. Coordinated looks. One shared style moment.**
+### YOUR STYLE. THEIR STYLE. ONE PERFECT MATCH.
 
-[![Built with Next.js](https://img.shields.io/badge/Next.js-App-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Virtual Try-On](https://img.shields.io/badge/AI-Virtual%20Try--On-3D7BFF?style=for-the-badge)](#-the-experience)
-[![Hackathon](https://img.shields.io/badge/Hackathon-YouCam%20VTO-8B5CF6?style=for-the-badge)](#-hackathon)
+A new way to imagine fashion together.
 
-**One vibe. Two fits. Perfectly matched.**
+**AI Virtual Try-On · Couple Styling · Shared Looks**
 
-[Explore the experience](#-the-experience) · [Get started](#-get-started) · [Roadmap](#-roadmap)
+<br />
+
+[![Next.js](https://img.shields.io/badge/NEXT.JS-000000?style=flat-square&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TYPESCRIPT-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![YouCam AI](https://img.shields.io/badge/POWERED_BY-YOUCAM_AI-2563EB?style=flat-square)](https://www.perfectcorp.com/business/showcase/ai-virtual-try-on)
+
+<br />
+
+**[Explore the repository](https://github.com/mohamed-kaif-1/LookMates)**
+
+<br />
 
 </div>
 
 ---
 
-## ✦ The idea
+## THE FUTURE OF MATCHING LOOKS.
 
-Online fashion shopping is personal. Coordinating outfits with someone else should be fun—not a guessing game.
+Choosing an outfit is personal. Finding two looks that belong together is an entirely different experience.
 
-**LookMates** explores a more social way to experience fashion: bring two people into one styling journey, visualize individual looks through virtual try-on, and bring the results together in a shared composition.
+**LookMates** is a collaborative fashion-tech project built around one simple idea: make it easier for two people to visualize their styles, explore complementary outfits, and bring their looks together.
 
-Instead of stopping at *“Does this outfit look good?”*, LookMates asks:
-
-> **“How do our looks work together?”**
-
-<table>
-  <tr>
-    <td width="33%" align="center">
-      <h3>01 · TRY</h3>
-      Visualize a selected garment on an individual.
-    </td>
-    <td width="33%" align="center">
-      <h3>02 · MATCH</h3>
-      Explore complementary styles for two people.
-    </td>
-    <td width="33%" align="center">
-      <h3>03 · SHARE</h3>
-      Bring the two results together in one composition.
-    </td>
-  </tr>
-</table>
-
-## ✨ The experience
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>💙 DuoMatch</h3>
-      <strong>Two people. One coordinated vision.</strong>
-      <p>The core LookMates concept: select looks for two participants, generate their individual try-on results, and present the outcomes together.</p>
-      <ul>
-        <li>Separate participant and garment assignments</li>
-        <li>Individual virtual try-on workflow</li>
-        <li>Side-by-side final composition</li>
-        <li>Background and presentation customization, where implemented</li>
-      </ul>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🪄 Virtual Try-On</h3>
-      <strong>See the look beyond the product photo.</strong>
-      <p>Designed to connect the app to YouCam's supported virtual try-on API so garment visualization can become part of the styling journey.</p>
-      <ul>
-        <li>Provider-backed image processing</li>
-        <li>Validated request and response handling</li>
-        <li>Loading and failure states</li>
-        <li>Server-side credential protection</li>
-      </ul>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>🎨 Final Look Studio</h3>
-      <strong>Make the result feel complete.</strong>
-      <p>A composition workflow for arranging both generated results in a single, balanced image.</p>
-      <ul>
-        <li>Proportional scaling and alignment</li>
-        <li>Background-removal pipeline, when configured</li>
-        <li>Selectable or custom backgrounds, where implemented</li>
-        <li>Export-ready final composition</li>
-      </ul>
-    </td>
-    <td width="50%" valign="top">
-      <h3>👟 Style Discovery</h3>
-      <strong>Complementary—not necessarily identical.</strong>
-      <p>A styling direction built around helping two people find looks that work together across color, silhouette, and occasion.</p>
-      <ul>
-        <li>Garment catalogue exploration</li>
-        <li>Coordinated outfit recommendations, where available</li>
-        <li>Flexible individual styling</li>
-        <li>Room for future group styling</li>
-      </ul>
-    </td>
-  </tr>
-</table>
-
-> **Scope note:** LookMates is an evolving project. Descriptions such as “designed to,” “where implemented,” and “future” distinguish the product vision from functionality that still needs implementation or verification. Only mark a feature complete after testing it in the current codebase.
-
-## 🖥️ Product preview
-
-Add real screenshots or a short demo GIF here when available. Real product captures are more convincing to judges than generic stock images.
+From individual virtual try-on to a shared final composition, LookMates reimagines fashion as something you can experience together.
 
 <div align="center">
-  <table>
-    <tr>
-      <td align="center" width="50%">
-        <strong>01 · DuoMatch workspace</strong><br/>
-        <em>Add a screenshot of the participant and garment selection UI.</em>
-      </td>
-      <td align="center" width="50%">
-        <strong>02 · Final composition</strong><br/>
-        <em>Add a screenshot of two successful try-on results composed together.</em>
-      </td>
-    </tr>
-  </table>
+
+### TWO PEOPLE. DIFFERENT STYLES. ONE VISION.
+
+*Not matching outfits. Matching energy.*
+
 </div>
 
-<!-- Replace the placeholders above with real screenshots, for example:
-![DuoMatch workspace](docs/images/duomatch-workspace.png)
-![Final composed result](docs/images/duomatch-result.png)
--->
+---
 
-## ⚡ How it works
+## 01 — THE EXPERIENCE
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 01. DUOMATCH
+
+**Two looks. One connection.**
+
+Create a coordinated styling experience for two people without forcing them into identical outfits.
+
+- Separate participant profiles
+- Individual garment selection
+- Coordinated styling workflow
+- A shared final presentation
+
+</td>
+<td width="50%" valign="top">
+
+### 02. VIRTUAL TRY-ON
+
+**See the possibility before the purchase.**
+
+Connect individual looks to YouCam's virtual try-on technology and visualize how a selected garment appears on its intended person.
+
+- Person-specific image inputs
+- Garment-specific assignments
+- Provider-backed image generation
+- Clear processing and error states
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 03. THE FINAL FRAME
+
+**Two individual results. One composition.**
+
+Bring the two try-on results together in a single visual presentation.
+
+- Side-by-side image composition
+- Consistent scaling and alignment
+- Customizable presentation backgrounds
+- Exportable output, where implemented
+
+</td>
+<td width="50%" valign="top">
+
+### 04. STYLE DISCOVERY
+
+**Find the balance between two styles.**
+
+Explore a direction where colors, garments, and personal preferences can complement each other.
+
+- Visual garment catalogue
+- Outfit exploration
+- Recommendation-led selection, where available
+- Room to grow into group styling
+
+</td>
+</tr>
+</table>
+
+---
+
+## 02 — THE JOURNEY
+
+<div align="center">
 
 ```mermaid
-flowchart TD
-    A[Choose participants] --> B[Select garments]
-    B --> C[Validate image inputs]
-    C --> D[Request individual virtual try-on]
-    D --> E{Both results successful?}
-    E -- No --> F[Show error and allow retry]
-    E -- Yes --> G[Compose both results]
-    G --> H[Choose background and presentation]
-    H --> I[Preview and export final image]
+flowchart LR
+    A["01<br/>PEOPLE"] --> B["02<br/>GARMENTS"]
+    B --> C["03<br/>VIRTUAL TRY-ON"]
+    C --> D["04<br/>COMPOSITION"]
+    D --> E["05<br/>YOUR FINAL LOOK"]
 
-    classDef primary fill:#101827,stroke:#3D7BFF,color:#FFFFFF,stroke-width:2px;
-    classDef decision fill:#1C1640,stroke:#8B5CF6,color:#FFFFFF,stroke-width:2px;
-    class A,B,C,D,G,H,I primary;
-    class E decision;
+    style A fill:#101010,color:#FFFFFF,stroke:#3B82F6
+    style B fill:#101010,color:#FFFFFF,stroke:#3B82F6
+    style C fill:#101010,color:#FFFFFF,stroke:#3B82F6
+    style D fill:#101010,color:#FFFFFF,stroke:#3B82F6
+    style E fill:#2563EB,color:#FFFFFF,stroke:#2563EB
 ```
 
-The intended workflow keeps the two try-on jobs independent. Each result should remain associated with the correct participant and selected garment. The final composition should only run when the required outputs are available.
+</div>
 
-### Composition principles
+**The principle:** each person's try-on is processed independently. Once the required results are available, the application can compose them into one shared image.
 
-- **Preserve proportions:** scale people without stretching the source images.
-- **Align consistently:** use detected subject bounds where a segmentation pipeline is available.
-- **Keep responsibilities separate:** virtual try-on, background segmentation, and image composition are different operations.
-- **Handle partial failure:** if one try-on fails, show the failure and provide a retry path instead of presenting a misleading final result.
+The composition stage is separate from the virtual try-on provider. A genuine provider result must never be replaced by a placeholder and presented as a successful generation.
 
-## 🎯 What makes LookMates different?
+---
 
-| Typical individual try-on | LookMates' direction |
+## 03 — THE VISUAL IDENTITY
+
+<div align="center">
+
+| OBSIDIAN | PURE WHITE | ELECTRIC BLUE |
+|:---:|:---:|:---:|
+| `#0A0A0A` | `#FFFFFF` | `#3B82F6` |
+| Precision | Clarity | Expression |
+
+</div>
+
+LookMates follows a restrained, fashion-first design philosophy.
+
+- **Minimal by design.** Every section earns its place.
+- **Bold where it matters.** Strong typography and confident contrast.
+- **Image-led.** The people and garments remain the focus.
+- **Responsive by default.** Designed for desktop and mobile experiences.
+- **Purposeful motion.** Interactions should feel fluid, never distracting.
+
+The goal is not to make the interface louder. It is to make the experience feel more considered.
+
+---
+
+## 04 — UNDER THE HOOD
+
+| Layer | Role |
 |---|---|
-| Focuses on one person's look | Designed around two participants |
-| Reviews items one at a time | Explores coordinated outfit combinations |
-| Presents separate product results | Aims to create one shared visual composition |
-| Shopping is primarily individual | Styling becomes a collaborative experience |
+| Next.js | Web application framework |
+| React | Component-driven interface |
+| TypeScript | Typed application development |
+| YouCam API | Virtual try-on integration, when configured |
+| Image processing | Result composition and background processing, according to the implemented pipeline |
 
-LookMates is an exploration of **collaborative virtual fashion**, not a claim that every planned capability is already production-ready.
+The architecture is intended to keep the interface, provider integration, and final image composition as distinct responsibilities.
 
-## 🎨 Design language
+### Engineering principles
 
-LookMates uses a bold fashion-tech visual direction:
+**Correct image mapping**
 
-- **Palette:** black, white, and electric blue
-- **Style:** clean neo-brutalist accents with deliberate spacing
-- **Structure:** strong headings, clear hierarchy, and grid-based layouts
-- **Interaction:** responsive controls, useful feedback, and smooth transitions
-- **Priority:** keep the outfit and the people at the center of the experience
+Every try-on job must use the intended participant photograph and garment reference.
 
-## 🧰 Tech stack
+**Secure provider access**
 
-| Layer | Technology |
-|---|---|
-| Web framework | Next.js |
-| UI | React |
-| Language | TypeScript |
-| Code quality | ESLint |
-| Virtual try-on | YouCam API integration, subject to configured endpoints and credentials |
-| Image composition | Application image-processing pipeline, depending on installed implementation |
+API credentials belong on the server, never in browser-visible code or committed files.
 
-The repository includes a Next.js/TypeScript application. Confirm the exact dependencies and integrations against `package.json` and the current source before treating optional services as part of the live stack.
+**Honest processing states**
 
-## 🚀 Get started
+A result is complete only after the provider returns a valid output and the application verifies it.
+
+**Graceful failure**
+
+Invalid inputs, API errors, timeouts, and failed jobs should produce understandable messages and recovery paths.
+
+---
+
+## 05 — RUN IT LOCALLY
 
 ### Requirements
 
-- Node.js version compatible with the project dependencies
+- Node.js compatible with the project's dependencies
 - npm
 - Git
-- YouCam API credentials if required by the configured integration
+- YouCam API credentials if the configured integration requires them
 
-### 1. Clone the repository
+### Installation
+
+**01 · Clone**
 
 ```bash
 git clone https://github.com/mohamed-kaif-1/LookMates.git
 cd LookMates
 ```
 
-### 2. Install dependencies
+**02 · Install**
 
 ```bash
 npm install
 ```
 
-### 3. Configure environment variables
+**03 · Configure**
 
-Create `.env.local` only if the application expects environment variables.
+Create `.env.local` if required by the application.
 
 ```dotenv
-# Example only — use the exact names expected by your backend.
-# Add your provider key here locally; never commit real secrets.
+# Add the environment variables expected by your backend.
+# Never commit actual API keys or secrets.
 ```
 
-Keep actual secrets out of source control. Do not copy example variable names blindly; use the names defined by the current application. Provider credentials must remain on the server and must never be exposed through browser code.
+Use the exact environment-variable names expected by the code. Keep real credentials out of Git.
 
-### 4. Start the development server
+**04 · Launch**
 
 ```bash
 npm run dev
@@ -231,92 +238,118 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-### 5. Run available checks
+**05 · Validate**
 
 ```bash
 npm run lint
 npm run build
 ```
 
-These commands require the corresponding scripts to exist in `package.json`.
-
-## 🔐 Security & privacy
-
-Because the workflow may handle personal photos and provider credentials:
-
-- Never commit `.env`, `.env.local`, API keys, or access tokens.
-- Check `lookmates.db` before publishing; do not commit it if it contains private or sensitive data.
-- Validate uploaded file types, file sizes, and remote image URLs.
-- Keep provider requests and secret credentials on the server.
-- Avoid exposing private image URLs in logs or public responses.
-- Define appropriate retention and deletion behavior for uploaded and generated images.
-- Follow the YouCam API terms and relevant privacy requirements.
-
-## 🗺️ Roadmap
-
-The roadmap below describes intended work. Update each item only after verifying it in the application.
-
-- [ ] Verify end-to-end YouCam API integration with real successful responses
-- [ ] Complete the two-participant DuoMatch workflow
-- [ ] Validate participant-to-garment mapping and job tracking
-- [ ] Complete the final image composition pipeline
-- [ ] Validate background removal and transparent output
-- [ ] Complete background selection and custom background upload
-- [ ] Expand the garment catalogue and recommendation workflow
-- [ ] Add resilient error handling, retries, and loading states
-- [ ] Test mobile responsiveness and accessibility
-- [ ] Add automated tests for the critical user journey
-- [ ] Explore **CrewMatch** for larger groups
-
-## 🧪 Validation checklist
-
-Before calling the main workflow complete, verify:
-
-- [ ] Both participant images pass input validation.
-- [ ] Each garment is assigned to the intended participant.
-- [ ] API credentials are not sent to the browser.
-- [ ] Provider errors and missing output URLs are handled gracefully.
-- [ ] The final composition only runs when the required results exist.
-- [ ] People remain proportional and correctly aligned.
-- [ ] Background selection and export work for supported formats.
-- [ ] No private images, credentials, or database contents are exposed.
-- [ ] The app builds and the available lint checks pass.
-
-## 🏆 Hackathon
-
-**Built for the YouCam API Skin AI & eCommerce VTO Hackathon.**
-
-LookMates explores how virtual try-on can move beyond an isolated product preview and become part of a shared fashion decision. The project connects individual visualization, coordinated styling, and a combined presentation into one proposed experience.
-
-For a strong submission, include:
-- A live demo or recorded walkthrough
-- Screenshots of the actual implemented interface
-- A clear explanation of the YouCam API integration
-- Example inputs and successful outputs that you have permission to share
-- A transparent list of completed features and known limitations
-
-## 🤝 Contributing
-
-Ideas, bug reports, and improvements are welcome.
-
-1. Fork the repository.
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Make and test your changes.
-4. Commit with a clear message.
-5. Open a pull request describing the change.
-
-## 📄 License
-
-No license has been specified in this README. Add a `LICENSE` file before presenting the project as open source, and ensure the selected license matches your intentions.
+Run these checks if the corresponding scripts are available in `package.json`.
 
 ---
 
+## 06 — PRODUCT PREVIEW
+
 <div align="center">
 
-### LOOKMATES
+### DESIGNED TO BRING TWO LOOKS TOGETHER.
 
-**Better outfits. Better matches. Better moments.**
+</div>
 
-*Find your fit. Match your vibe.*
+Add screenshots of the actual application here. A real before-and-after virtual try-on example will make this section much stronger.
+
+```text
+docs/
+└── images/
+    ├── lookmates-banner.svg
+    ├── duomatch-workspace.png
+    └── final-composition.png
+```
+
+Once those screenshots exist, replace this placeholder section with:
+
+```markdown
+<div align="center">
+
+### THE DUOMATCH WORKSPACE
+
+![DuoMatch workspace](docs/images/duomatch-workspace.png)
+
+### THE FINAL COMPOSITION
+
+![LookMates final composition](docs/images/final-composition.png)
+
+</div>
+```
+
+Only use genuine screenshots and generated results from your project. Avoid presenting mockups as proof of working API integration.
+
+---
+
+## 07 — ROADMAP
+
+The next stage is about making the complete experience reliable, not simply adding more screens.
+
+- [ ] Verify real YouCam API requests and successful responses
+- [ ] Complete and validate the DuoMatch journey
+- [ ] Ensure participant and garment assignments remain correct
+- [ ] Complete the two-result composition pipeline
+- [ ] Verify transparent background processing
+- [ ] Complete background customization and export
+- [ ] Expand garment catalogue choices
+- [ ] Finalize recommendation-to-try-on flow
+- [ ] Test responsive layouts and accessibility
+- [ ] Add automated tests for critical workflows
+- [ ] Explore CrewMatch for larger groups
+
+*Roadmap items are planned work until verified in the current implementation.*
+
+---
+
+## 08 — PRIVACY & RESPONSIBILITY
+
+LookMates may process personal photographs and generated imagery. These assets should be treated with care.
+
+- Keep API secrets server-side.
+- Validate uploaded files and image sources.
+- Avoid exposing private image URLs.
+- Do not commit personal images, credentials, or sensitive databases.
+- Define appropriate image-retention and deletion behavior.
+- Follow the provider's API terms and applicable privacy requirements.
+
+---
+
+## 09 — BUILT FOR THE HACKATHON
+
+<div align="center">
+
+**YouCam API Skin AI & eCommerce VTO Hackathon**
+
+LookMates explores how virtual try-on can become more than an individual product preview: it can become the beginning of a shared styling experience.
+
+The vision is simple.
+
+**Help two people see their looks separately—and imagine them together.**
+
+</div>
+
+---
+
+## THE NEXT LOOK IS BETTER TOGETHER.
+
+<div align="center">
+
+**LOOKMATES®**
+
+*Different styles. One perfect moment.*
+
+<br />
+
+[GitHub Repository](https://github.com/mohamed-kaif-1/LookMates)
+
+<br />
+
+<sub>Designed around people. Built around possibility.</sub>
 
 </div>
