@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
-
-export const dynamic = "force-dynamic";
+import { connection, NextResponse } from "next/server";
 
 export async function GET(request: Request) {
+  await connection();
   try {
     const { searchParams } = new URL(request.url);
     const imageUrl = searchParams.get("url");
@@ -41,3 +40,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Failed to proxy image." }, { status: 500 });
   }
 }
+
