@@ -48,11 +48,20 @@ function detectBoundingBox(rawBuffer: Buffer, width: number, height: number, alp
   };
 }
 
-// Helper to fetch image buffer safely (handling data URLs or remote URLs)
+import fs from "fs";
+import path from "path";
+
+// Helper to fetch image buffer safely (handling data URLs, local relative files, or remote URLs)
 async function fetchBuffer(url: string): Promise<Buffer> {
   if (url.startsWith("data:")) {
     const base64Data = url.split(",")[1];
     return Buffer.from(base64Data, "base64");
+  }
+  if (url.startsWith("/")) {
+    const filePath = path.join(process.cwd(), "public", url);
+    if (fs.existsSync(filePath)) {
+      return await fs.promises.readFile(filePath);
+    }
   }
   const res = await fetch(url);
   if (!res.ok) {
@@ -294,7 +303,7 @@ export async function POST(request: Request) {
     let baseBuffer: Buffer;
     const bgImgUrl = body.backgroundImageUrl || body.uploadedBackgroundImage;
 
-    if (bgImgUrl && (bgLower === "upload" || bgLower === "image" || bgLower === "custom_image")) {
+    if (bgImgUrl && bgLower !== "transparent" && bgLower !== "white" && bgLower !== "soft_grey" && bgLower !== "warm_beige" && bgLower !== "midnight_black" && bgLower !== "custom") {
       try {
         const rawBgBuf = await fetchBuffer(bgImgUrl);
         baseBuffer = await sharp(rawBgBuf)

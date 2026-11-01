@@ -23,7 +23,7 @@ export async function POST(
       }
 
       // Validate image format
-      if (typeof photoData !== "string" || (!photoData.startsWith("data:image/") && !photoData.startsWith("http"))) {
+      if (typeof photoData !== "string" || (!photoData.startsWith("data:image/") && !photoData.startsWith("http") && !photoData.startsWith("/"))) {
         return NextResponse.json({ error: "Invalid image format. Expected PNG, JPEG or WebP image." }, { status: 400 });
       }
 
@@ -47,10 +47,10 @@ export async function POST(
       return NextResponse.json({ error: "Participant ID or role ('person1' | 'person2') required." }, { status: 400 });
     }
 
-    // Validate image format: base64 data URL or HTTP URL
-    if (typeof photoData !== "string" || (!photoData.startsWith("data:image/") && !photoData.startsWith("http"))) {
-      return NextResponse.json({ error: "Invalid image format. Expected PNG, JPEG or WebP image." }, { status: 400 });
-    }
+      // Validate image format: base64 data URL, HTTP URL, or local public path
+      if (typeof photoData !== "string" || (!photoData.startsWith("data:image/") && !photoData.startsWith("http") && !photoData.startsWith("/"))) {
+        return NextResponse.json({ error: "Invalid image format. Expected PNG, JPEG or WebP image." }, { status: 400 });
+      }
 
     // Validate size limit (approx 10MB base64)
     if (photoData.length > 15 * 1024 * 1024) {

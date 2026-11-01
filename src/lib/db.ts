@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 import fs from "node:fs";
+import { INDIAN_GARMENT_SEEDS } from "./indianGarmentsSeed";
 
 const dbPath = process.env.DATABASE_URL || path.join(process.cwd(), "lookmates.db");
 
@@ -158,6 +159,51 @@ function initTables(db: DatabaseSync) {
 
   try {
     db.exec(`ALTER TABLE garments ADD COLUMN vto_category TEXT DEFAULT 'upper_body';`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE garments ADD COLUMN fabric TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE garments ADD COLUMN culture_tag TEXT DEFAULT 'western';`);
+  } catch {}
+
+  // Multi-Category Virtual Try-On Studio Migrations
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN selected_categories TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN processed_categories TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN unsupported_categories TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN intermediate_results TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN garment_data TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN category_provenance TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN metrics TEXT;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE tryon_jobs ADD COLUMN retry_count INTEGER DEFAULT 0;`);
+  } catch {}
+
+  try {
+    db.exec(`ALTER TABLE garment_assignments ADD COLUMN category_key TEXT;`);
   } catch {}
 
   // Seed / update expanded curated garments
@@ -686,7 +732,7 @@ function seedGarments(db: DatabaseSync) {
       name: "Hand-Burnished Cognac Calfskin Penny Loafers",
       category: "footwear",
       subcategory: "Loafers",
-      image_url: "https://images.unsplash.com/photo-1614252369475-531eba835eb1?auto=format&fit=crop&w=800&q=80",
+      image_url: "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80",
       color: "Cognac Brown",
       description: "Goodyear-welted apron-toe penny loafers in vegetable-tanned French calfskin.",
       price: 9999,
@@ -879,30 +925,54 @@ function seedGarments(db: DatabaseSync) {
     }
   ];
 
+  const allItems = [...seedItems, ...INDIAN_GARMENT_SEEDS];
+
   const stmt = db.prepare(`
     INSERT OR REPLACE INTO garments (
       id, name, category, subcategory, image_url, color, description, price, currency,
-      gender_target, style_tag, occasion_tag, is_demo, is_vto_compatible, vto_category
+      gender_target, style_tag, occasion_tag, is_demo, is_vto_compatible, vto_category,
+      fabric, culture_tag
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
   `);
 
-  for (const item of seedItems) {
+  for (const item of allItems) {
+    const rawItem = item as {
+      id: string;
+      name: string;
+      category: string;
+      subcategory?: string;
+      image_url: string;
+      color: string;
+      description: string;
+      price: number;
+      currency: string;
+      gender_target: string;
+      style_tag: string;
+      occasion_tag: string;
+      is_vto_compatible?: number;
+      vto_category?: string;
+      fabric?: string;
+      culture_tag?: string;
+    };
+
     stmt.run(
-      item.id,
-      item.name,
-      item.category,
-      item.subcategory || item.category,
-      item.image_url,
-      item.color,
-      item.description,
-      item.price,
-      item.currency,
-      item.gender_target,
-      item.style_tag,
-      item.occasion_tag,
-      item.is_vto_compatible ?? 1,
-      item.vto_category || "upper_body"
+      rawItem.id,
+      rawItem.name,
+      rawItem.category,
+      rawItem.subcategory || rawItem.category,
+      rawItem.image_url,
+      rawItem.color,
+      rawItem.description,
+      rawItem.price,
+      rawItem.currency,
+      rawItem.gender_target,
+      rawItem.style_tag,
+      rawItem.occasion_tag,
+      rawItem.is_vto_compatible ?? 1,
+      rawItem.vto_category || "upper_body",
+      rawItem.fabric || "Cotton/Blend",
+      rawItem.culture_tag || "western"
     );
   }
 }

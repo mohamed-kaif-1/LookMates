@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/Navbar";
 import { BookOpen, Download, Trash2, Edit3, Eye, Sparkles, X, Check } from "lucide-react";
@@ -26,11 +26,7 @@ export default function LookbookPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  useEffect(() => {
-    fetchLooks();
-  }, []);
-
-  async function fetchLooks() {
+  const fetchLooks = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch("/api/lookbook");
@@ -43,7 +39,14 @@ export default function LookbookPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchLooks();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [fetchLooks]);
 
   async function handleRename(id: string) {
     if (!editTitle.trim()) return;

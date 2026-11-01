@@ -12,6 +12,10 @@ export async function GET(request: Request) {
     const search = searchParams.get("search");
     const color = searchParams.get("color");
     const gender = searchParams.get("gender");
+    const culture = searchParams.get("culture");
+    const fabric = searchParams.get("fabric");
+    const minPrice = searchParams.get("minPrice");
+    const maxPrice = searchParams.get("maxPrice");
     const vtoOnly = searchParams.get("vtoOnly");
     const sort = searchParams.get("sort");
 
@@ -19,14 +23,35 @@ export async function GET(request: Request) {
     let query = "SELECT * FROM garments WHERE 1=1";
     const params: unknown[] = [];
 
+    if (culture && culture !== "all") {
+      query += " AND culture_tag = ?";
+      params.push(culture.toLowerCase());
+    }
+
     if (category && category !== "all") {
-      query += " AND category = ?";
-      params.push(category);
+      const c = category.toLowerCase();
+      if (c === "shoes" || c === "footwear") {
+        query += " AND (category = 'shoes' OR category = 'footwear')";
+      } else if (c === "top" || c === "tops") {
+        query += " AND (category = 'top' OR category = 'tops')";
+      } else if (c === "bottom" || c === "bottoms") {
+        query += " AND (category = 'bottom' OR category = 'bottoms')";
+      } else if (c === "dress" || c === "dresses") {
+        query += " AND (category = 'dress' OR category = 'dresses')";
+      } else {
+        query += " AND category = ?";
+        params.push(category);
+      }
     }
 
     if (subcategory && subcategory !== "all") {
       query += " AND subcategory = ?";
       params.push(subcategory);
+    }
+
+    if (fabric && fabric !== "all") {
+      query += " AND fabric LIKE ?";
+      params.push(`%${fabric}%`);
     }
 
     if (occasion && occasion !== "all") {
@@ -44,14 +69,24 @@ export async function GET(request: Request) {
       params.push(`%${color}%`);
     }
 
+    if (minPrice && !isNaN(Number(minPrice))) {
+      query += " AND price >= ?";
+      params.push(Number(minPrice));
+    }
+
+    if (maxPrice && !isNaN(Number(maxPrice))) {
+      query += " AND price <= ?";
+      params.push(Number(maxPrice));
+    }
+
     if (vtoOnly === "true") {
       query += " AND (is_vto_compatible = 1 OR is_vto_compatible IS NULL)";
     }
 
     if (search && search.trim() !== "") {
       const s = search.trim();
-      query += " AND (name LIKE ? OR description LIKE ? OR occasion_tag LIKE ? OR subcategory LIKE ?)";
-      params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`);
+      query += " AND (name LIKE ? OR description LIKE ? OR occasion_tag LIKE ? OR subcategory LIKE ? OR fabric LIKE ? OR style_tag LIKE ?)";
+      params.push(`%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`, `%${s}%`);
     }
 
     if (sort === "price_asc") {

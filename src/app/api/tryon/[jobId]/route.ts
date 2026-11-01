@@ -15,7 +15,7 @@ export async function GET(
              g.name as garment_name, g.image_url as garment_image, g.category as garment_category
       FROM tryon_jobs tj
       JOIN participants p ON tj.participant_id = p.id
-      JOIN garments g ON tj.garment_id = g.id
+      LEFT JOIN garments g ON tj.garment_id = g.id
       WHERE tj.id = ?
     `).get(jobId) as {
       id: string;
@@ -23,18 +23,23 @@ export async function GET(
       provider_job_id: string;
       status: string;
       result_image_url: string;
-      garment_image: string;
+      garment_image?: string;
+      selected_categories?: string;
+      processed_categories?: string;
+      unsupported_categories?: string;
+      intermediate_results?: string;
+      garment_data?: string;
     } | undefined;
 
     if (!job) {
       return NextResponse.json({ error: "Try-on job not found." }, { status: 404 });
     }
 
-    // If still in processing/submitting state, poll YouCam
-    if (job.status === "processing" || job.status === "submitting" || job.status === "queued") {
+    // If still in processing/submitting state and has a provider job id, poll YouCam
+    if ((job.status === "processing" || job.status === "submitting" || job.status === "queued") && job.provider_job_id) {
       const pollResult = await YouCamService.pollClothTask(
         job.provider_job_id,
-        job.garment_image // used for fallback preview if mock
+        job.garment_image
       );
 
       if (pollResult.status !== job.status || pollResult.resultImageUrl !== job.result_image_url) {
@@ -51,7 +56,6 @@ export async function GET(
           job.id
         );
 
-        // Update local object
         job.status = pollResult.status;
         job.result_image_url = pollResult.resultImageUrl || "";
       }

@@ -5,29 +5,38 @@ import {
   Download,
   RefreshCw,
   Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Sliders,
   ShieldCheck,
-  Image as ImageIcon,
   Check,
-  Layers,
-  Crop,
   Maximize2,
   Upload,
   Palette,
   RotateCcw,
-  Trash2
+  Trash2,
+  X,
+  AlertCircle,
+  Eye,
+  Sliders,
+  ChevronDown,
+  ChevronUp,
+  ZoomIn,
+  ZoomOut
 } from "lucide-react";
+import {
+  getBackgroundsForOccasion,
+  BackgroundPresetItem,
+  normalizeOccasionKey
+} from "@/lib/backgrounds";
 
 export type BackgroundType =
+  | "preset"
   | "transparent"
   | "white"
   | "soft_grey"
   | "warm_beige"
   | "midnight_black"
   | "custom"
-  | "upload";
+  | "upload"
+  | string;
 
 interface BoundingBox {
   minX: number;
@@ -48,23 +57,35 @@ interface NormalizationData {
   spacing: number;
 }
 
-interface CoupleComposerProps {
-  person1ImageUrl: string;
-  person2ImageUrl: string;
-  referenceImageUrl?: string | null;
-  onReferenceChange?: (newUrl: string | null) => void;
+export interface CoupleComposerProps {
+  person1ImageUrl?: string | null;
+  person2ImageUrl?: string | null;
+  person1SourcePhoto?: string | null;
+  person2SourcePhoto?: string | null;
   person1Name?: string;
   person2Name?: string;
   person1Garment?: string;
   person2Garment?: string;
+  person1Categories?: string[];
+  person2Categories?: string[];
+  person1Status?: string;
+  person2Status?: string;
+  person1ErrorMessage?: string;
+  person2ErrorMessage?: string;
+  onRetryPerson1?: () => void;
+  onRetryPerson2?: () => void;
+  isRetryingPerson1?: boolean;
+  isRetryingPerson2?: boolean;
+  referenceImageUrl?: string | null;
+  onReferenceChange?: (newUrl: string | null) => void;
   occasion: string;
   onComposed?: (dataUrl: string) => void;
   sessionId?: string | null;
-  initialBackground?: BackgroundType;
+  initialBackground?: string;
   initialCustomColorHex?: string;
   initialBackgroundImageUrl?: string | null;
   onBackgroundSaved?: (settings: {
-    background: BackgroundType;
+    background: string;
     customColorHex?: string;
     backgroundImageUrl?: string | null;
   }) => void;
@@ -73,62 +94,125 @@ interface CoupleComposerProps {
 export function CoupleComposer({
   person1ImageUrl,
   person2ImageUrl,
-  referenceImageUrl,
-  onReferenceChange,
+  person1SourcePhoto,
+  person2SourcePhoto,
   person1Name = "Person 1",
   person2Name = "Person 2",
   person1Garment = "Outfit 1",
   person2Garment = "Outfit 2",
+  person1Categories = [],
+  person2Categories = [],
+  person1Status = "succeeded",
+  person2Status = "succeeded",
+  person1ErrorMessage,
+  person2ErrorMessage,
+  onRetryPerson1,
+  onRetryPerson2,
+  isRetryingPerson1 = false,
+  isRetryingPerson2 = false,
   occasion,
   onComposed,
   sessionId,
-  initialBackground = "transparent",
+  initialBackground,
   initialCustomColorHex = "#1764FF",
   initialBackgroundImageUrl = null,
   onBackgroundSaved
 }: CoupleComposerProps) {
-  const [composedUrl, setComposedUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingStage, setLoadingStage] = useState<string>("Initializing segmentation...");
-  const [error, setError] = useState<string | null>(null);
+  // Occasion-aware backgrounds
+  const occasionData = getBackgroundsForOccasion(occasion);
+  const defaultBgId = initialBackground || occasionData.recommendedPreset.id;
 
-  // Background Studio state
-  const [background, setBackground] = useState<BackgroundType>(initialBackground);
+  const [selectedBgId, setSelectedBgId] = useState<string>(defaultBgId);
+  const [selectedBgUrl, setSelectedBgUrl] = useState<string | null>(
+    initialBackgroundImageUrl || occasionData.recommendedPreset.imageUrl || null
+  );
   const [customColorHex, setCustomColorHex] = useState<string>(initialCustomColorHex);
-  const [uploadedBgUrl, setUploadedBgUrl] = useState<string | null>(initialBackgroundImageUrl);
+  const [uploadedBgUrl, setUploadedBgUrl] = useState<string | null>(
+    initialBackground === "upload" ? initialBackgroundImageUrl : null
+  );
   const bgUploadRef = useRef<HTMLInputElement | null>(null);
+
+  // Active Tab for Backgrounds: "presets" | "studio"
+  const [bgTab, setBgTab] = useState<"presets" | "studio">("presets");
+
+  // Composition state
+  const [composedUrl, setComposedUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<string>("Initializing composition...");
+  const [error, setError] = useState<string | null>(null);
+  const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
 
   // Cached transparent cutouts from YouCam AI SOD
   const [person1CutoutUrl, setPerson1CutoutUrl] = useState<string | null>(null);
   const [person2CutoutUrl, setPerson2CutoutUrl] = useState<string | null>(null);
 
-  // Inspection & Bounding Box Data
+  // Normalization Telemetry
   const [boundingBoxes, setBoundingBoxes] = useState<{ person1: BoundingBox; person2: BoundingBox } | null>(null);
   const [normalization, setNormalization] = useState<NormalizationData | null>(null);
-  const [showIndividualResults, setShowIndividualResults] = useState(false);
   const [showTechDetails, setShowTechDetails] = useState(false);
 
-  // Spacing & Target Height adjustments
-  const [targetHeight, setTargetHeight] = useState<number>(2050);
-  const [subjectSpacing, setSubjectSpacing] = useState<number>(130);
+  // Modal for full-size viewing
+  const [modalImage, setModalImage] = useState<{ url: string; title: string } | null>(null);
+  const [modalZoom, setModalZoom] = useState(1);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && modalImage) {
+        setModalImage(null);
+        setModalZoom(1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [modalImage]);
+
+  // Invalidate stale cutouts and composed image if individual outfit results change
+  const prevP1Ref = useRef(person1ImageUrl);
+  const prevP2Ref = useRef(person2ImageUrl);
+  useEffect(() => {
+    let changed = false;
+    if (prevP1Ref.current !== person1ImageUrl) {
+      prevP1Ref.current = person1ImageUrl;
+      setPerson1CutoutUrl(null);
+      changed = true;
+    }
+    if (prevP2Ref.current !== person2ImageUrl) {
+      prevP2Ref.current = person2ImageUrl;
+      setPerson2CutoutUrl(null);
+      changed = true;
+    }
+    if (changed) {
+      setComposedUrl(null);
+      setHasGeneratedOnce(false);
+    }
+  }, [person1ImageUrl, person2ImageUrl]);
+
+  // Keep background in sync if occasion changes and no manual override
+  useEffect(() => {
+    if (!initialBackground) {
+      const updated = getBackgroundsForOccasion(occasion);
+      setSelectedBgId(updated.recommendedPreset.id);
+      setSelectedBgUrl(updated.recommendedPreset.imageUrl || null);
+    }
+  }, [occasion, initialBackground]);
 
   // Persist background settings to session
   const persistBackgroundToSession = useCallback(
-    async (bg: BackgroundType, hex: string, bgImg: string | null) => {
+    async (bgId: string, hex: string, bgImg: string | null) => {
       if (!sessionId) return;
       try {
         await fetch(`/api/sessions/${sessionId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            backgroundSetting: bg,
+            backgroundSetting: bgId,
             customColorHex: hex,
             customBackgroundImage: bgImg
           })
         });
         if (onBackgroundSaved) {
           onBackgroundSaved({
-            background: bg,
+            background: bgId,
             customColorHex: hex,
             backgroundImageUrl: bgImg
           });
@@ -143,13 +227,17 @@ export function CoupleComposer({
   // Master composition runner
   const runCompositionPipeline = useCallback(
     async (
-      bgChoice: BackgroundType = background,
-      tHeight = targetHeight,
-      sp = subjectSpacing,
-      customHex = customColorHex,
-      uploadUrl = uploadedBgUrl
+      bgId: string = selectedBgId,
+      bgUrl: string | null = selectedBgUrl,
+      customHex: string = customColorHex
     ) => {
-      if (!person1ImageUrl || !person2ImageUrl) return;
+      const p1 = person1ImageUrl || person1SourcePhoto;
+      const p2 = person2ImageUrl || person2SourcePhoto;
+
+      if (!p1 || !p2) {
+        setError("Both Person 1 and Person 2 photos are required to generate couple image.");
+        return;
+      }
 
       try {
         setLoading(true);
@@ -157,24 +245,28 @@ export function CoupleComposer({
         if (!person1CutoutUrl || !person2CutoutUrl) {
           setLoadingStage("Removing backgrounds with YouCam AI SOD...");
         } else {
-          setLoadingStage("Rendering custom background layer in Background Studio...");
+          setLoadingStage("Normalizing heights and compositing onto selected background...");
         }
+
+        const isStudioType = ["transparent", "white", "soft_grey", "warm_beige", "midnight_black", "custom"].includes(bgId);
+        const bgParam = isStudioType ? bgId : bgId === "upload" ? "upload" : "preset";
+        const bgImageParam = isStudioType ? undefined : bgId === "upload" ? uploadedBgUrl : bgUrl;
 
         const response = await fetch("/api/compose-portrait", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            person1ImageUrl,
-            person2ImageUrl,
+            person1ImageUrl: p1,
+            person2ImageUrl: p2,
             person1CutoutUrl: person1CutoutUrl || undefined,
             person2CutoutUrl: person2CutoutUrl || undefined,
-            background: bgChoice,
+            background: bgParam,
             customColorHex: customHex,
-            backgroundImageUrl: uploadUrl || undefined,
+            backgroundImageUrl: bgImageParam || undefined,
             canvasWidth: 2400,
             canvasHeight: 2400,
-            targetPersonHeight: tHeight,
-            spacing: sp
+            targetPersonHeight: 2050,
+            spacing: 130
           })
         });
 
@@ -185,6 +277,7 @@ export function CoupleComposer({
         }
 
         setComposedUrl(data.dataUrl);
+        setHasGeneratedOnce(true);
         if (data.person1CutoutUrl) setPerson1CutoutUrl(data.person1CutoutUrl);
         if (data.person2CutoutUrl) setPerson2CutoutUrl(data.person2CutoutUrl);
         if (data.boundingBoxes) setBoundingBoxes(data.boundingBoxes);
@@ -204,39 +297,71 @@ export function CoupleComposer({
     [
       person1ImageUrl,
       person2ImageUrl,
+      person1SourcePhoto,
+      person2SourcePhoto,
       person1CutoutUrl,
       person2CutoutUrl,
-      background,
-      targetHeight,
-      subjectSpacing,
+      selectedBgId,
+      selectedBgUrl,
       customColorHex,
       uploadedBgUrl,
       onComposed
     ]
   );
 
-  // Trigger on initial mount or when input try-on URLs change
+  // Auto-generate on initial mount when both photos are present and haven't generated yet
   useEffect(() => {
-    runCompositionPipeline(background, targetHeight, subjectSpacing, customColorHex, uploadedBgUrl);
+    const p1 = person1ImageUrl || person1SourcePhoto;
+    const p2 = person2ImageUrl || person2SourcePhoto;
+    if (p1 && p2 && !composedUrl && !loading && !hasGeneratedOnce) {
+      const timer = setTimeout(() => {
+        runCompositionPipeline(selectedBgId, selectedBgUrl, customColorHex);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [person1ImageUrl, person2ImageUrl]);
 
-  // Handle background type change
-  const handleBackgroundChange = (newBg: BackgroundType) => {
-    setBackground(newBg);
-    runCompositionPipeline(newBg, targetHeight, subjectSpacing, customColorHex, uploadedBgUrl);
-    persistBackgroundToSession(newBg, customColorHex, uploadedBgUrl);
+  // Handle Preset selection
+  const handleSelectPreset = (preset: BackgroundPresetItem) => {
+    setSelectedBgId(preset.id);
+    setSelectedBgUrl(preset.imageUrl || null);
+    runCompositionPipeline(preset.id, preset.imageUrl || null, customColorHex);
+    persistBackgroundToSession(preset.id, customColorHex, preset.imageUrl || null);
+  };
+
+  // Handle Studio selection
+  const handleSelectStudio = (item: BackgroundPresetItem) => {
+    setSelectedBgId(item.id);
+    if (item.type === "studio") {
+      setSelectedBgUrl(null);
+      runCompositionPipeline(item.id, null, customColorHex);
+      persistBackgroundToSession(item.id, customColorHex, null);
+    } else if (item.type === "custom") {
+      setSelectedBgUrl(null);
+      runCompositionPipeline("custom", null, customColorHex);
+      persistBackgroundToSession("custom", customColorHex, null);
+    } else if (item.type === "upload") {
+      if (uploadedBgUrl) {
+        setSelectedBgUrl(uploadedBgUrl);
+        runCompositionPipeline("upload", uploadedBgUrl, customColorHex);
+        persistBackgroundToSession("upload", customColorHex, uploadedBgUrl);
+      } else {
+        bgUploadRef.current?.click();
+      }
+    }
   };
 
   // Handle custom hex color change
   const handleCustomColorChange = (newHex: string) => {
     setCustomColorHex(newHex);
-    setBackground("custom");
-    runCompositionPipeline("custom", targetHeight, subjectSpacing, newHex, uploadedBgUrl);
-    persistBackgroundToSession("custom", newHex, uploadedBgUrl);
+    setSelectedBgId("custom");
+    setSelectedBgUrl(null);
+    runCompositionPipeline("custom", null, newHex);
+    persistBackgroundToSession("custom", newHex, null);
   };
 
-  // Handle background file upload (JPG, JPEG, PNG, WebP)
+  // Handle background file upload
   const handleBgFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -255,8 +380,9 @@ export function CoupleComposer({
     reader.onload = (event) => {
       const dataUrl = event.target?.result as string;
       setUploadedBgUrl(dataUrl);
-      setBackground("upload");
-      runCompositionPipeline("upload", targetHeight, subjectSpacing, customColorHex, dataUrl);
+      setSelectedBgId("upload");
+      setSelectedBgUrl(dataUrl);
+      runCompositionPipeline("upload", dataUrl, customColorHex);
       persistBackgroundToSession("upload", customColorHex, dataUrl);
     };
     reader.readAsDataURL(file);
@@ -265,28 +391,31 @@ export function CoupleComposer({
   // Remove uploaded background
   const handleRemoveUploadedBg = () => {
     setUploadedBgUrl(null);
-    setBackground("transparent");
+    const fallback = occasionData.recommendedPreset;
+    setSelectedBgId(fallback.id);
+    setSelectedBgUrl(fallback.imageUrl || null);
     if (bgUploadRef.current) bgUploadRef.current.value = "";
-    runCompositionPipeline("transparent", targetHeight, subjectSpacing, customColorHex, null);
-    persistBackgroundToSession("transparent", customColorHex, null);
+    runCompositionPipeline(fallback.id, fallback.imageUrl || null, customColorHex);
+    persistBackgroundToSession(fallback.id, customColorHex, fallback.imageUrl || null);
   };
 
-  // Reset to default
+  // Reset to default recommended background
   const handleResetToDefault = () => {
-    setBackground("transparent");
+    const fallback = occasionData.recommendedPreset;
+    setSelectedBgId(fallback.id);
+    setSelectedBgUrl(fallback.imageUrl || null);
     setCustomColorHex("#1764FF");
     setUploadedBgUrl(null);
     if (bgUploadRef.current) bgUploadRef.current.value = "";
-    runCompositionPipeline("transparent", targetHeight, subjectSpacing, "#1764FF", null);
-    persistBackgroundToSession("transparent", "#1764FF", null);
+    runCompositionPipeline(fallback.id, fallback.imageUrl || null, "#1764FF");
+    persistBackgroundToSession(fallback.id, "#1764FF", fallback.imageUrl || null);
   };
 
   // Download composed 2400 × 2400 PNG
   const handleDownload = () => {
     if (!composedUrl) return;
-
     const link = document.createElement("a");
-    const bgTag = background === "transparent" ? "transparent" : background.replace("_", "-");
+    const bgTag = selectedBgId.replace("_", "-");
     link.download = `lookmates-couple-portrait-${bgTag}-2400x2400.png`;
     link.href = composedUrl;
     document.body.appendChild(link);
@@ -294,61 +423,13 @@ export function CoupleComposer({
     document.body.removeChild(link);
   };
 
-  // Background Options Definition
-  const bgOptions: Array<{
-    id: BackgroundType;
-    label: string;
-    sublabel: string;
-    colorSwatch?: string;
-    isCheckerboard?: boolean;
-    isUpload?: boolean;
-  }> = [
-    {
-      id: "transparent",
-      label: "Transparent",
-      sublabel: "Alpha PNG",
-      isCheckerboard: true
-    },
-    {
-      id: "white",
-      label: "Pure White",
-      sublabel: "#FFFFFF",
-      colorSwatch: "#FFFFFF"
-    },
-    {
-      id: "soft_grey",
-      label: "Soft Grey",
-      sublabel: "#F3F4F6",
-      colorSwatch: "#F3F4F6"
-    },
-    {
-      id: "warm_beige",
-      label: "Warm Beige",
-      sublabel: "#F5F0E6",
-      colorSwatch: "#F5F0E6"
-    },
-    {
-      id: "midnight_black",
-      label: "Midnight Black",
-      sublabel: "#0A0A0C",
-      colorSwatch: "#0A0A0C"
-    },
-    {
-      id: "custom",
-      label: "Custom Color",
-      sublabel: customColorHex.toUpperCase(),
-      colorSwatch: customColorHex
-    },
-    {
-      id: "upload",
-      label: "Upload Image",
-      sublabel: uploadedBgUrl ? "Custom Image" : "JPG/PNG/WebP",
-      isUpload: true
-    }
-  ];
+  const currentBgLabel =
+    occasionData.presets.find((p) => p.id === selectedBgId)?.name ||
+    occasionData.studioOptions.find((s) => s.id === selectedBgId)?.name ||
+    (selectedBgId === "custom" ? `Custom (${customColorHex})` : selectedBgId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Hidden File Input for Background Upload */}
       <input
         ref={bgUploadRef}
@@ -358,460 +439,713 @@ export function CoupleComposer({
         className="hidden"
       />
 
-      {/* MASTER CARD: NEO-BRUTALIST CONTAINER */}
-      <div className="bg-white border-2 border-[#111827] rounded-[4px] p-5 sm:p-7 shadow-[4px_4px_0px_#080B10]">
-        {/* Top Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b-2 border-[#111827] mb-5">
+      {/* ========================================================= */}
+      {/* STEP 5 WORKSPACE: GENERATE COUPLE IMAGE                   */}
+      {/* ========================================================= */}
+      <div className="bg-white border-2 border-[#111827] rounded-[4px] p-5 sm:p-8 shadow-[4px_4px_0px_#080B10] space-y-6">
+        {/* Workspace Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b-2 border-[#111827]">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="bg-[#1764FF] text-white text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-[2px] uppercase tracking-wide">
-                2400 × 2400 px • Height-Matched Duo
+                STEP 5 • GENERATE COUPLE IMAGE
               </span>
-              <span className="bg-[#DCFCE7] text-[#16803C] border border-[#16803C] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase flex items-center gap-1">
-                <Check className="w-2.5 h-2.5" />
-                <span>YouCam AI Cutout Active</span>
+              <span className="bg-[#080B10] text-[#1764FF] text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-[2px] uppercase border border-[#1764FF] flex items-center gap-1">
+                <Sparkles className="w-2.5 h-2.5" />
+                <span>AI POWERED</span>
               </span>
-              <span className="border border-[#111827] bg-white text-[#080B10] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase">
-                {background === "transparent"
-                  ? "Transparent Alpha"
-                  : background === "custom"
-                  ? `Custom (${customColorHex})`
-                  : background === "upload"
-                  ? "Custom Image Backdrop"
-                  : `${background.replace("_", " ")} Backdrop`}
+              <span className="border border-[#111827] bg-[#F7F9FC] text-[#080B10] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase">
+                {currentBgLabel}
               </span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-[#080B10] tracking-tight">
-              Height-Matched Couple Composition
+            <h2 className="text-2xl sm:text-3xl font-black text-[#080B10] tracking-tight uppercase">
+              GENERATE COUPLE IMAGE
             </h2>
             <p className="text-xs text-[#647084] mt-0.5">
-              Individual backgrounds removed via YouCam AI SOD. Both people normalized to identical visible height and aligned to the exact same floor baseline.
+              Create a stunning couple image based on your style and occasion.
             </p>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {/* Action Controls */}
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
             <button
-              onClick={() => runCompositionPipeline(background, targetHeight, subjectSpacing, customColorHex, uploadedBgUrl)}
+              onClick={() => runCompositionPipeline(selectedBgId, selectedBgUrl, customColorHex)}
               disabled={loading}
-              className="lm-btn-secondary !py-2.5 !px-3.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              title="Re-run composition"
+              className="lm-btn-secondary !py-2.5 !px-4 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-[2px_2px_0px_#080B10]"
+              title="Regenerate Couple Portrait"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
               <span>Regenerate</span>
             </button>
 
-            <button
-              onClick={handleDownload}
-              disabled={!composedUrl || loading}
-              className="lm-btn-primary !py-2.5 !px-6 text-xs font-black flex items-center gap-2 shadow-[2px_2px_0px_#080B10] cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Couple Portrait</span>
-            </button>
+            {composedUrl && (
+              <button
+                onClick={handleDownload}
+                disabled={loading}
+                className="lm-btn-primary !py-2.5 !px-5 text-xs font-black flex items-center gap-1.5 shadow-[2px_2px_0px_#080B10] cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* ========================================================= */}
-        {/* PHASE 1: BACKGROUND STUDIO                                */}
+        {/* TWO-COLUMN WORKSPACE: PREVIEW (LEFT) + CONTROLS (RIGHT)    */}
         {/* ========================================================= */}
-        <div className="mb-6 p-4 sm:p-5 bg-[#F7F9FC] border-2 border-[#111827] rounded-[4px] shadow-[2px_2px_0px_#080B10] space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#DCE3EF]">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-[#1764FF] text-white flex items-center justify-center rounded-[2px] font-mono font-bold text-xs">
-                <Layers className="w-3.5 h-3.5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-[#080B10] tracking-tight uppercase font-mono">
-                  Background Studio
-                </h3>
-                <p className="text-[11px] text-[#647084]">
-                  Render backdrop layer beneath both models. Live preview updates locally without re-running YouCam VTO.
-                </p>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* MAIN LEFT PANEL: COUPLE IMAGE PREVIEW (7 COLUMNS) */}
+          <div className="lg:col-span-7 space-y-3">
+            <div className="relative border-2 border-[#111827] rounded-[4px] overflow-hidden bg-[#F7F9FC] shadow-[3px_3px_0px_#080B10] min-h-[460px] flex items-center justify-center">
+              {/* Empty State before Generation */}
+              {!loading && !composedUrl && !error && (
+                <div className="p-8 text-center space-y-4 max-w-md">
+                  <div className="w-16 h-16 bg-[#EFF6FF] border-2 border-[#1764FF] rounded-full mx-auto flex items-center justify-center">
+                    <Sparkles className="w-8 h-8 text-[#1764FF]" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-[#080B10] uppercase font-mono">
+                      Ready to Generate Couple Image
+                    </h3>
+                    <p className="text-xs text-[#647084] mt-1 leading-relaxed">
+                      LookMates combines {person1Name}&apos;s and {person2Name}&apos;s looks, normalizes heights to the exact same floor baseline, and sets the scene against your selected {occasion} background.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => runCompositionPipeline(selectedBgId, selectedBgUrl, customColorHex)}
+                    className="lm-btn-primary !py-2.5 !px-6 text-xs font-black shadow-[2px_2px_0px_#080B10] cursor-pointer"
+                  >
+                    Generate Couple Image Now
+                  </button>
+                </div>
+              )}
 
-            <button
-              type="button"
-              onClick={handleResetToDefault}
-              className="self-start sm:self-auto text-[11px] font-mono font-bold text-[#647084] hover:text-[#080B10] flex items-center gap-1.5 px-2.5 py-1 bg-white border border-[#111827] rounded-[2px] cursor-pointer transition-colors"
-            >
-              <RotateCcw className="w-3 h-3 text-[#1764FF]" />
-              <span>Reset to Default</span>
-            </button>
-          </div>
+              {/* Real Loading State */}
+              {loading && (
+                <div className="p-8 text-center space-y-4">
+                  <div className="w-14 h-14 border-4 border-[#1764FF] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <div>
+                    <p className="font-mono text-sm font-bold text-[#080B10]">
+                      Generating Couple Portrait...
+                    </p>
+                    <p className="font-mono text-xs text-[#647084] mt-1">{loadingStage}</p>
+                  </div>
+                  <div className="inline-block px-3 py-1 bg-white border border-[#111827] text-[10px] font-mono text-[#647084] rounded-[2px]">
+                    YouCam AI Salient Object Detection • 2400 × 2400 Resolution
+                  </div>
+                </div>
+              )}
 
-          {/* 7 Background Option Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-            {bgOptions.map((opt) => {
-              const isSelected = background === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    if (opt.id === "upload" && !uploadedBgUrl) {
-                      bgUploadRef.current?.click();
-                    } else {
-                      handleBackgroundChange(opt.id);
-                    }
-                  }}
-                  className={`p-2.5 border-2 rounded-[3px] text-left transition-all cursor-pointer flex flex-col justify-between min-h-[76px] ${
-                    isSelected
-                      ? "border-[#1764FF] bg-white shadow-[2px_2px_0px_#1764FF]"
-                      : "border-[#111827] bg-white hover:bg-[#F0F4FF]"
+              {/* Error State */}
+              {!loading && error && (
+                <div className="p-6 text-center space-y-3 max-w-md">
+                  <AlertCircle className="w-10 h-10 text-[#DC2626] mx-auto" />
+                  <p className="font-mono text-xs font-bold text-[#DC2626]">
+                    Generation Failed: {error}
+                  </p>
+                  <p className="text-[11px] text-[#647084]">
+                    Verify that source photos are clear and valid garment selections are applied.
+                  </p>
+                  <button
+                    onClick={() => runCompositionPipeline(selectedBgId, selectedBgUrl, customColorHex)}
+                    className="lm-btn-secondary !py-2 !px-4 text-xs font-bold cursor-pointer"
+                  >
+                    Retry Generation
+                  </button>
+                </div>
+              )}
+
+              {/* Completed Generated Couple Image */}
+              {!loading && composedUrl && (
+                <div
+                  className={`w-full h-full min-h-[460px] max-h-[580px] flex items-center justify-center p-2 ${
+                    selectedBgId === "transparent"
+                      ? "bg-[linear-gradient(45deg,#E2E8F0_25%,transparent_25%),linear-gradient(-45deg,#E2E8F0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#E2E8F0_75%),linear-gradient(-45deg,transparent_75%,#E2E8F0_75%)] bg-[size:20px_20px] bg-white"
+                      : "bg-[#080B10]"
                   }`}
                 >
-                  <div className="flex items-center justify-between w-full mb-2">
-                    {opt.isCheckerboard ? (
-                      <div className="w-6 h-6 rounded-[2px] border border-[#111827] bg-[linear-gradient(45deg,#ccc_25%,transparent_25%),linear-gradient(-45deg,#ccc_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ccc_75%),linear-gradient(-45deg,transparent_75%,#ccc_75%)] bg-[size:6px_6px] bg-white" />
-                    ) : opt.isUpload ? (
-                      <div className="w-6 h-6 rounded-[2px] border border-[#111827] bg-[#EFF6FF] flex items-center justify-center text-[#1764FF]">
-                        {uploadedBgUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={uploadedBgUrl} alt="uploaded" className="w-full h-full object-cover rounded-[1px]" />
-                        ) : (
-                          <Upload className="w-3.5 h-3.5" />
-                        )}
-                      </div>
-                    ) : (
-                      <div
-                        style={{ backgroundColor: opt.colorSwatch }}
-                        className="w-6 h-6 rounded-[2px] border border-[#111827]"
-                      />
-                    )}
-
-                    {isSelected && (
-                      <span className="w-3.5 h-3.5 bg-[#1764FF] text-white rounded-full flex items-center justify-center text-[9px]">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="font-mono font-bold text-xs text-[#080B10] truncate leading-tight">
-                      {opt.label}
-                    </div>
-                    <div className="font-mono text-[9px] text-[#647084] truncate mt-0.5">
-                      {opt.sublabel}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Sub-Panel: Custom Color Controls */}
-          {background === "custom" && (
-            <div className="p-3 bg-white border border-[#111827] rounded-[3px] flex flex-wrap items-center justify-between gap-4 animate-fadeIn">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-mono font-bold text-[#080B10] uppercase flex items-center gap-1.5">
-                  <Palette className="w-3.5 h-3.5 text-[#1764FF]" />
-                  Pick Color:
-                </span>
-                <input
-                  type="color"
-                  value={customColorHex}
-                  onChange={(e) => handleCustomColorChange(e.target.value)}
-                  className="w-9 h-8 border border-[#111827] rounded-[2px] cursor-pointer bg-white p-0.5"
-                  title="Choose custom background color"
-                />
-                <div className="flex items-center gap-1 border border-[#111827] rounded-[2px] px-2 py-1 bg-[#F7F9FC]">
-                  <span className="text-xs font-mono font-bold text-[#647084]">#</span>
-                  <input
-                    type="text"
-                    value={customColorHex.replace(/^#/, "")}
-                    onChange={(e) => {
-                      const val = `#${e.target.value.replace(/[^0-9a-fA-F]/g, "")}`;
-                      if (val.length <= 7) {
-                        setCustomColorHex(val);
-                        if (val.length === 7) handleCustomColorChange(val);
-                      }
-                    }}
-                    placeholder="1764FF"
-                    className="w-20 text-xs font-mono font-bold text-[#080B10] uppercase bg-transparent outline-none"
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={composedUrl}
+                    alt="Generated Couple Portrait"
+                    className="w-full h-full object-contain max-h-[560px] select-none"
                   />
-                </div>
-              </div>
 
-              {/* Quick curated palettes */}
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] font-mono text-[#647084] uppercase mr-1">Presets:</span>
-                {[
-                  { name: "Electric Blue", hex: "#1764FF" },
-                  { name: "Slate Navy", hex: "#0F172A" },
-                  { name: "Rose Champagne", hex: "#EAD7CD" },
-                  { name: "Emerald Green", hex: "#064E3B" },
-                  { name: "Warm Terracotta", hex: "#9A3412" },
-                  { name: "Minimal Concrete", hex: "#E2E8F0" }
-                ].map((preset) => (
+                  {/* Expand Full Size Control */}
                   <button
-                    key={preset.hex}
                     type="button"
-                    onClick={() => handleCustomColorChange(preset.hex)}
-                    style={{ backgroundColor: preset.hex }}
-                    className="w-5 h-5 rounded-[2px] border border-[#111827] hover:scale-110 transition-transform cursor-pointer"
-                    title={`${preset.name} (${preset.hex})`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Sub-Panel: Uploaded Background Controls */}
-          {background === "upload" && (
-            <div className="p-3 bg-white border border-[#111827] rounded-[3px] flex flex-wrap items-center justify-between gap-3 animate-fadeIn">
-              <div className="flex items-center gap-3">
-                {uploadedBgUrl ? (
-                  <div className="w-12 h-12 rounded-[2px] border border-[#111827] overflow-hidden bg-[#F7F9FC] shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={uploadedBgUrl} alt="Backdrop Thumbnail" className="w-full h-full object-cover" />
-                  </div>
-                ) : (
-                  <div className="w-12 h-12 rounded-[2px] border border-dashed border-[#111827] flex items-center justify-center bg-[#F7F9FC] text-[#647084]">
-                    <Upload className="w-4 h-4 text-[#1764FF]" />
-                  </div>
-                )}
-                <div>
-                  <div className="text-xs font-mono font-bold text-[#080B10]">
-                    {uploadedBgUrl ? "Custom Background Image Active" : "No Background Image Uploaded"}
-                  </div>
-                  <div className="text-[10px] text-[#647084]">
-                    Scaled proportionally with center cover. Both participants remain in the foreground.
-                  </div>
+                    onClick={() => setModalImage({ url: composedUrl, title: "Full Couple Portrait (2400 × 2400)" })}
+                    className="absolute bottom-3 right-3 bg-white/95 hover:bg-white border border-[#111827] text-[#080B10] px-2.5 py-1.5 rounded-[2px] font-mono text-[11px] font-bold flex items-center gap-1.5 shadow-[2px_2px_0px_#080B10] cursor-pointer transition-colors"
+                    title="View Full Size (2400 × 2400)"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 text-[#1764FF]" />
+                    <span>Expand Full Size</span>
+                  </button>
                 </div>
-              </div>
+              )}
+            </div>
 
-              <div className="flex items-center gap-2">
+            {/* Quality & Preservation Badges below preview */}
+            <div className="flex items-center justify-between text-[11px] font-mono text-[#647084] px-1 flex-wrap gap-2">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#16803C]" />
+                <span>Identities, faces & unselected garments 100% pixel-preserved</span>
+              </span>
+              {normalization && (
                 <button
                   type="button"
-                  onClick={() => bgUploadRef.current?.click()}
-                  className="lm-btn-secondary !py-1.5 !px-3 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => setShowTechDetails(!showTechDetails)}
+                  className="font-bold text-[#1764FF] hover:underline cursor-pointer flex items-center gap-1"
                 >
-                  <Upload className="w-3.5 h-3.5 text-[#1764FF]" />
-                  <span>{uploadedBgUrl ? "Replace Background" : "Upload Image"}</span>
+                  <span>{showTechDetails ? "Hide Metrics" : "View Height Matching Metrics"}</span>
+                  {showTechDetails ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 </button>
+              )}
+            </div>
 
-                {uploadedBgUrl && (
+            {/* Technical Height Matching Metrics (Expandable) */}
+            {showTechDetails && boundingBoxes && normalization && (
+              <div className="p-3 bg-[#EFF6FF] border border-[#1764FF] rounded-[4px] text-xs font-mono space-y-2">
+                <div className="flex items-center justify-between border-b border-[#BFDBFE] pb-1 text-[10px]">
+                  <span className="font-bold text-[#1764FF] uppercase">
+                    Pixel-Level Normalization & Baseline Alignment Telemetry
+                  </span>
+                  <span>Target Height: {normalization.targetHeight}px</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-[11px] text-[#475569]">
+                  <div>
+                    <strong className="text-[#080B10]">{person1Name}:</strong> Scale ×{normalization.person1Scale} • Size: {normalization.scaledPerson1.width}×{normalization.scaledPerson1.height}px
+                  </div>
+                  <div>
+                    <strong className="text-[#080B10]">{person2Name}:</strong> Scale ×{normalization.person2Scale} • Size: {normalization.scaledPerson2.width}×{normalization.scaledPerson2.height}px
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* MAIN RIGHT PANEL: GENERATION CONTROLS (5 COLUMNS) */}
+          <div className="lg:col-span-5 space-y-4">
+            {/* Occasion Summary Box */}
+            <div className="p-3.5 bg-[#F7F9FC] border-2 border-[#111827] rounded-[4px] shadow-[2px_2px_0px_#080B10]">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-mono font-bold text-[#647084] uppercase">
+                  Selected Occasion
+                </span>
+                <span className="bg-[#1764FF] text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-[2px] uppercase">
+                  {occasion}
+                </span>
+              </div>
+              <p className="text-xs text-[#080B10] font-bold">
+                Curated AI backdrops optimized for {occasion}.
+              </p>
+            </div>
+
+            {/* Background Selector Container */}
+            <div className="border-2 border-[#111827] rounded-[4px] p-4 bg-white shadow-[2px_2px_0px_#080B10] space-y-3">
+              <div className="flex items-center justify-between border-b border-[#DCE3EF] pb-2">
+                <span className="text-xs font-mono font-bold text-[#080B10] uppercase tracking-wide">
+                  Select Background
+                </span>
+
+                {/* Tabs: Occasion Presets vs Solid Studio */}
+                <div className="flex items-center gap-1 bg-[#F7F9FC] p-0.5 border border-[#111827] rounded-[2px]">
                   <button
                     type="button"
-                    onClick={handleRemoveUploadedBg}
-                    className="text-[#DC2626] hover:bg-[#FEE2E2] border border-[#DC2626] rounded-[2px] px-2.5 py-1.5 text-xs font-bold font-mono flex items-center gap-1 cursor-pointer transition-colors"
-                    title="Remove uploaded background"
+                    onClick={() => setBgTab("presets")}
+                    className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-[2px] cursor-pointer transition-colors ${
+                      bgTab === "presets" ? "bg-[#1764FF] text-white" : "text-[#647084] hover:text-[#080B10]"
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Remove</span>
+                    Occasion Presets
                   </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Telemetry Quick Bar */}
-          {normalization && (
-            <div className="flex items-center justify-between text-[11px] font-mono text-[#647084] pt-1">
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <Maximize2 className="w-3 h-3 text-[#1764FF]" />
-                  Normalized Height: <strong className="text-[#080B10] font-bold">{normalization.targetHeight}px</strong>
-                </span>
-                <span>•</span>
-                <span>
-                  Baseline: <strong className="text-[#080B10] font-bold">{normalization.baselineY}px</strong>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTechDetails(!showTechDetails)}
-                className="font-bold text-[#1764FF] hover:underline cursor-pointer"
-              >
-                {showTechDetails ? "Hide Metrics" : "View Metrics"}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Technical Bounding Box Metrics Drawer (Expandable) */}
-        {showTechDetails && boundingBoxes && normalization && (
-          <div className="mb-6 p-4 bg-[#EFF6FF] border border-[#1764FF] rounded-[4px] text-xs font-mono space-y-2">
-            <div className="flex items-center justify-between border-b border-[#BFDBFE] pb-1.5">
-              <span className="font-bold text-[#1764FF] uppercase">
-                Pixel-Level Foreground Bounding Box & Normalization Telemetry
-              </span>
-              <span className="text-[10px] text-[#647084]">Canvas: 2400 × 2400 px</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div className="p-2.5 bg-white border border-[#BFDBFE] rounded-[2px]">
-                <div className="font-bold text-[#080B10] mb-1">{person1Name} (Left Subject)</div>
-                <div className="text-[11px] text-[#647084] space-y-0.5">
-                  <div>Visible Bounds: [{boundingBoxes.person1.minX}, {boundingBoxes.person1.minY}] to [{boundingBoxes.person1.maxX}, {boundingBoxes.person1.maxY}]</div>
-                  <div>Detected Visible Size: {boundingBoxes.person1.width}px (W) × {boundingBoxes.person1.height}px (H)</div>
-                  <div>Normalization Scale: ×{normalization.person1Scale} → Scaled: {normalization.scaledPerson1.width}px × {normalization.scaledPerson1.height}px</div>
-                  <div>Position: Left {normalization.scaledPerson1.left}px, Top {normalization.scaledPerson1.top}px, Baseline {normalization.baselineY}px</div>
+                  <button
+                    type="button"
+                    onClick={() => setBgTab("studio")}
+                    className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-[2px] cursor-pointer transition-colors ${
+                      bgTab === "studio" ? "bg-[#1764FF] text-white" : "text-[#647084] hover:text-[#080B10]"
+                    }`}
+                  >
+                    Studio Backdrops
+                  </button>
                 </div>
               </div>
 
-              <div className="p-2.5 bg-white border border-[#BFDBFE] rounded-[2px]">
-                <div className="font-bold text-[#080B10] mb-1">{person2Name} (Right Subject)</div>
-                <div className="text-[11px] text-[#647084] space-y-0.5">
-                  <div>Visible Bounds: [{boundingBoxes.person2.minX}, {boundingBoxes.person2.minY}] to [{boundingBoxes.person2.maxX}, {boundingBoxes.person2.maxY}]</div>
-                  <div>Detected Visible Size: {boundingBoxes.person2.width}px (W) × {boundingBoxes.person2.height}px (H)</div>
-                  <div>Normalization Scale: ×{normalization.person2Scale} → Scaled: {normalization.scaledPerson2.width}px × {normalization.scaledPerson2.height}px</div>
-                  <div>Position: Left {normalization.scaledPerson2.left}px, Top {normalization.scaledPerson2.top}px, Baseline {normalization.baselineY}px</div>
+              {/* TAB 1: OCCASION PRESETS */}
+              {bgTab === "presets" && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto pr-1">
+                    {occasionData.presets.map((preset) => {
+                      const isSelected = selectedBgId === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleSelectPreset(preset)}
+                          className={`relative text-left p-1.5 rounded-[3px] border-2 transition-all cursor-pointer group flex flex-col gap-1.5 ${
+                            isSelected
+                              ? "border-[#1764FF] bg-[#EFF6FF] shadow-[2px_2px_0px_#1764FF]"
+                              : "border-[#DCE3EF] hover:border-[#111827] bg-white"
+                          }`}
+                        >
+                          {/* Real Background Thumbnail */}
+                          <div className="relative w-full aspect-[4/3] rounded-[2px] overflow-hidden border border-[#111827] bg-[#E2E8F0]">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={preset.imageUrl}
+                              alt={preset.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            />
+                            {preset.recommended && (
+                              <span className="absolute top-1 left-1 bg-[#1764FF] text-white text-[8px] font-mono font-black px-1.5 py-0.2 rounded-[1px] shadow-sm uppercase">
+                                Recommended
+                              </span>
+                            )}
+                            {isSelected && (
+                              <div className="absolute top-1 right-1 w-4 h-4 bg-[#1764FF] rounded-full flex items-center justify-center text-white">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="text-[11px] font-bold text-[#080B10] line-clamp-1">
+                              {preset.name}
+                            </div>
+                            <div className="text-[9px] text-[#647084] line-clamp-1 font-mono">
+                              {preset.description}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+              )}
+
+              {/* TAB 2: STUDIO & CUSTOM BACKDROPS */}
+              {bgTab === "studio" && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {occasionData.studioOptions.map((item) => {
+                      const isSelected = selectedBgId === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleSelectStudio(item)}
+                          className={`text-left p-2 rounded-[3px] border-2 transition-all cursor-pointer flex flex-col gap-1.5 ${
+                            isSelected
+                              ? "border-[#1764FF] bg-[#EFF6FF] shadow-[2px_2px_0px_#1764FF]"
+                              : "border-[#DCE3EF] hover:border-[#111827] bg-white"
+                          }`}
+                        >
+                          <div
+                            className={`w-full aspect-[16/9] rounded-[2px] border border-[#111827] flex items-center justify-center ${
+                              item.id === "transparent"
+                                ? "bg-[linear-gradient(45deg,#E2E8F0_25%,transparent_25%),linear-gradient(-45deg,#E2E8F0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#E2E8F0_75%),linear-gradient(-45deg,transparent_75%,#E2E8F0_75%)] bg-[size:10px_10px] bg-white"
+                                : item.id === "upload"
+                                ? "bg-[#F7F9FC]"
+                                : ""
+                            }`}
+                            style={
+                              item.colorHex && item.colorHex !== "transparent"
+                                ? { backgroundColor: item.colorHex }
+                                : undefined
+                            }
+                          >
+                            {item.id === "upload" && <Upload className="w-4 h-4 text-[#1764FF]" />}
+                            {item.id === "custom" && <Palette className="w-4 h-4 text-white" />}
+                            {isSelected && item.id !== "custom" && (
+                              <Check className="w-3.5 h-3.5 text-[#1764FF]" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-bold text-[#080B10] leading-tight">
+                              {item.name}
+                            </div>
+                            <div className="text-[9px] text-[#647084] font-mono leading-tight">
+                              {item.description}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom Hex Picker Input */}
+                  {selectedBgId === "custom" && (
+                    <div className="p-3 bg-[#F7F9FC] border border-[#111827] rounded-[3px] space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={customColorHex}
+                          onChange={(e) => handleCustomColorChange(e.target.value)}
+                          className="w-8 h-8 border border-[#111827] rounded-[2px] cursor-pointer bg-white"
+                        />
+                        <div className="flex items-center gap-1 border border-[#111827] rounded-[2px] px-2 py-1 bg-white">
+                          <span className="text-xs font-mono font-bold text-[#647084]">#</span>
+                          <input
+                            type="text"
+                            value={customColorHex.replace(/^#/, "")}
+                            onChange={(e) => {
+                              const val = `#${e.target.value.replace(/[^0-9a-fA-F]/g, "")}`;
+                              if (val.length <= 7) {
+                                setCustomColorHex(val);
+                                if (val.length === 7) handleCustomColorChange(val);
+                              }
+                            }}
+                            className="w-16 text-xs font-mono font-bold text-[#080B10] uppercase outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload Image Details */}
+                  {selectedBgId === "upload" && (
+                    <div className="p-3 bg-[#F7F9FC] border border-[#111827] rounded-[3px] flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-mono text-[#080B10]">
+                        {uploadedBgUrl ? "Custom backdrop image loaded" : "No file selected"}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => bgUploadRef.current?.click()}
+                          className="text-[11px] font-mono font-bold text-[#1764FF] hover:underline cursor-pointer"
+                        >
+                          {uploadedBgUrl ? "Change File" : "Choose File"}
+                        </button>
+                        {uploadedBgUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveUploadedBg}
+                            className="text-[11px] font-mono text-[#DC2626] hover:underline cursor-pointer ml-1"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Reset to Recommended Preset */}
+              <div className="pt-2 border-t border-[#DCE3EF] flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleResetToDefault}
+                  className="text-[10px] font-mono font-bold text-[#647084] hover:text-[#080B10] flex items-center gap-1 cursor-pointer"
+                >
+                  <RotateCcw className="w-2.5 h-2.5 text-[#1764FF]" />
+                  <span>Reset to Recommended ({occasionData.recommendedPreset.name})</span>
+                </button>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Loading Spinner State */}
-        {loading && (
-          <div className="max-w-xl mx-auto aspect-square bg-[#F7F9FC] border-2 border-[#111827] rounded-[4px] flex flex-col items-center justify-center p-8 space-y-3">
-            <div className="w-12 h-12 border-4 border-[#1764FF] border-t-transparent rounded-full animate-spin"></div>
-            <p className="font-mono text-sm font-bold text-[#080B10]">
-              Updating 2400 × 2400 Couple Composition...
-            </p>
-            <p className="font-mono text-xs text-[#647084]">{loadingStage}</p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="p-4 bg-[#FEE2E2] border-2 border-[#DC2626] text-[#DC2626] font-mono text-xs space-y-2 rounded-[4px]">
-            <p className="font-bold">Composition Warning: {error}</p>
+            {/* Primary Generation CTA */}
             <button
-              onClick={() => runCompositionPipeline(background, targetHeight, subjectSpacing, customColorHex, uploadedBgUrl)}
-              className="lm-btn-secondary !py-1 !px-3 !text-xs cursor-pointer"
+              onClick={() => runCompositionPipeline(selectedBgId, selectedBgUrl, customColorHex)}
+              disabled={loading}
+              className="w-full lm-btn-primary !py-3.5 !px-6 text-sm font-black flex items-center justify-center gap-2 shadow-[3px_3px_0px_#080B10] cursor-pointer uppercase tracking-wide"
             >
-              Retry Composition
+              <Sparkles className="w-4 h-4" />
+              <span>{composedUrl ? "Regenerate Couple Portrait" : "Generate Couple Portrait"}</span>
             </button>
           </div>
-        )}
+        </div>
+      </div>
 
-        {/* FINAL COMPOSED COUPLE IMAGE DISPLAY (LIVE PREVIEW) */}
-        {!loading && composedUrl && (
-          <div className="relative border-2 border-[#111827] rounded-[4px] overflow-hidden max-w-2xl mx-auto shadow-md">
-            {/* Transparent checkerboard background pattern */}
-            <div
-              className={`w-full aspect-square flex items-center justify-center ${
-                background === "transparent"
-                  ? "bg-[linear-gradient(45deg,#E2E8F0_25%,transparent_25%),linear-gradient(-45deg,#E2E8F0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#E2E8F0_75%),linear-gradient(-45deg,transparent_75%,#E2E8F0_75%)] bg-[size:24px_24px] bg-[#FFFFFF]"
-                  : background === "white"
-                  ? "bg-white"
-                  : background === "soft_grey"
-                  ? "bg-[#F3F4F6]"
-                  : background === "warm_beige"
-                  ? "bg-[#F5F0E6]"
-                  : background === "midnight_black"
-                  ? "bg-[#0A0A0C]"
-                  : "bg-white"
-              }`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={composedUrl}
-                alt="Composed Couple"
-                className="w-full h-full object-contain select-none"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Image Spec Legend */}
-        <div className="mt-4 text-center">
-          <p className="text-[11px] font-mono text-[#647084]">
-            Export dimensions: <strong>2400 × 2400 pixels</strong> (1:1 High-Resolution Master) •{" "}
-            {background === "transparent"
-              ? "Transparent Alpha Background (Pure PNG)"
-              : background === "custom"
-              ? `Custom Hex (${customColorHex}) Background`
-              : background === "upload"
-              ? "Custom Uploaded Image Background"
-              : `${background.replace("_", " ")} Background`}{" "}
-            • Clean photographic export with no UI or borders.
+      {/* ========================================================= */}
+      {/* SECTION 6: INDIVIDUAL OUTFIT RESULTS                      */}
+      {/* ========================================================= */}
+      <div className="bg-white border-2 border-[#111827] rounded-[4px] p-5 sm:p-7 shadow-[4px_4px_0px_#080B10] space-y-5">
+        <div className="pb-3 border-b-2 border-[#111827]">
+          <span className="bg-[#1764FF] text-white text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-[2px] uppercase tracking-wide inline-block mb-1">
+            VERIFIED OUTFIT RESULTS
+          </span>
+          <h3 className="text-xl sm:text-2xl font-black text-[#080B10] tracking-tight uppercase">
+            INDIVIDUAL OUTFIT RESULTS
+          </h3>
+          <p className="text-xs text-[#647084] mt-0.5">
+            Review each look used to create your couple image.
           </p>
         </div>
 
-        {/* EXPANDABLE DRAWER: ORIGINAL YOUCAM VTO INPUTS & CUTOUTS */}
-        <div className="mt-6 border-t border-[#DCE3EF] pt-4">
-          <button
-            type="button"
-            onClick={() => setShowIndividualResults(!showIndividualResults)}
-            className="w-full flex items-center justify-between p-3 bg-[#F7F9FC] border border-[#111827] rounded-[4px] hover:bg-[#EAF1FF] transition-colors cursor-pointer text-left"
-          >
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-[#16803C]" />
-              <span className="font-mono text-xs font-bold text-[#080B10]">
-                Original Individual Virtual Try-On Results & AI Cutouts (YouCam API)
-              </span>
-            </div>
-            <div className="flex items-center gap-1 text-xs font-mono text-[#1764FF]">
-              <span>{showIndividualResults ? "Hide Details" : "Inspect Individual Results"}</span>
-              {showIndividualResults ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </div>
-          </button>
-
-          {showIndividualResults && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-5 p-4 bg-[#F7F9FC] border border-[#111827] rounded-[4px]">
-              {/* Person 1 Box */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#080B10] uppercase">
-                    {person1Name}: {person1Garment}
-                  </span>
-                  <span className="text-[10px] font-mono text-[#16803C] font-bold">
-                    ✓ YouCam Try-On + SOD
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-mono text-[#647084]">1. Try-On Output</span>
-                    <div className="aspect-[3/4] bg-white border border-[#111827] rounded-[2px] overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={person1ImageUrl} alt="P1 Tryon" className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-mono text-[#647084]">2. Segmented Cutout</span>
-                    <div className="aspect-[3/4] bg-[linear-gradient(45deg,#E2E8F0_25%,transparent_25%),linear-gradient(-45deg,#E2E8F0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#E2E8F0_75%),linear-gradient(-45deg,transparent_75%,#E2E8F0_75%)] bg-[size:12px_12px] bg-[#FFFFFF] border border-[#111827] rounded-[2px] overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={person1CutoutUrl || person1ImageUrl} alt="P1 Cutout" className="w-full h-full object-contain" />
-                    </div>
-                  </div>
-                </div>
+        {/* Two Individual Result Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* PERSON 1 CARD */}
+          <div className="border-2 border-[#111827] rounded-[4px] p-4 bg-[#F7F9FC] shadow-[2px_2px_0px_#080B10] flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-[#DCE3EF]">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#647084] uppercase">
+                  PARTICIPANT 1
+                </span>
+                <h4 className="text-sm font-black text-[#080B10]">{person1Name}</h4>
               </div>
 
-              {/* Person 2 Box */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold text-[#080B10] uppercase">
-                    {person2Name}: {person2Garment}
+              {/* Status Badge */}
+              <div className="flex items-center gap-1.5">
+                {person1Status === "succeeded" || person1ImageUrl ? (
+                  <span className="bg-[#DCFCE7] text-[#16803C] border border-[#16803C] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase flex items-center gap-1">
+                    <Check className="w-2.5 h-2.5" />
+                    <span>Try-On Complete</span>
                   </span>
-                  <span className="text-[10px] font-mono text-[#16803C] font-bold">
-                    ✓ YouCam Try-On + SOD
+                ) : person1Status === "failed" ? (
+                  <span className="bg-[#FEE2E2] text-[#DC2626] border border-[#DC2626] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase">
+                    Failed
                   </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-mono text-[#647084]">1. Try-On Output</span>
-                    <div className="aspect-[3/4] bg-white border border-[#111827] rounded-[2px] overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={person2ImageUrl} alt="P2 Tryon" className="w-full h-full object-cover" />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-mono text-[#647084]">2. Segmented Cutout</span>
-                    <div className="aspect-[3/4] bg-[linear-gradient(45deg,#E2E8F0_25%,transparent_25%),linear-gradient(-45deg,#E2E8F0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#E2E8F0_75%),linear-gradient(-45deg,transparent_75%,#E2E8F0_75%)] bg-[size:12px_12px] bg-[#FFFFFF] border border-[#111827] rounded-[2px] overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={person2CutoutUrl || person2ImageUrl} alt="P2 Cutout" className="w-full h-full object-contain" />
-                    </div>
-                  </div>
-                </div>
+                ) : (
+                  <span className="bg-[#FEF3C7] text-[#B45309] border border-[#B45309] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase">
+                    Processing
+                  </span>
+                )}
               </div>
             </div>
-          )}
+
+            {/* Individual Image Preview */}
+            <div className="relative aspect-[3/4] max-h-[380px] bg-white border border-[#111827] rounded-[2px] overflow-hidden flex items-center justify-center">
+              {person1ImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={person1ImageUrl}
+                  alt={`${person1Name} Outfit Result`}
+                  className="w-full h-full object-contain"
+                />
+              ) : person1SourcePhoto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={person1SourcePhoto}
+                  alt={`${person1Name} Source Photo`}
+                  className="w-full h-full object-contain opacity-70"
+                />
+              ) : (
+                <div className="text-center p-4 text-xs font-mono text-[#647084]">
+                  No photo available for {person1Name}
+                </div>
+              )}
+
+              {/* Full Size Button Overlay */}
+              {(person1ImageUrl || person1SourcePhoto) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setModalImage({
+                      url: (person1ImageUrl || person1SourcePhoto)!,
+                      title: `${person1Name} Individual Outfit`
+                    })
+                  }
+                  className="absolute bottom-2 right-2 bg-white/95 hover:bg-white border border-[#111827] text-[#080B10] px-2 py-1 rounded-[2px] font-mono text-[10px] font-bold flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <Eye className="w-3 h-3 text-[#1764FF]" />
+                  <span>Full Size</span>
+                </button>
+              )}
+            </div>
+
+            {/* Applied Garment Tags & Error State */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-mono text-[#647084] uppercase">Categories:</span>
+                {person1Categories.length > 0 ? (
+                  person1Categories.map((cat) => (
+                    <span
+                      key={cat}
+                      className="bg-white border border-[#111827] text-[#080B10] text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-[2px] uppercase"
+                    >
+                      {cat}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[10px] font-mono text-[#080B10]">{person1Garment}</span>
+                )}
+              </div>
+
+              {person1Status === "failed" && (
+                <div className="p-2 bg-[#FEE2E2] border border-[#DC2626] rounded-[2px] text-[10px] font-mono text-[#DC2626] flex items-center justify-between">
+                  <span>{person1ErrorMessage || "Virtual try-on error"}</span>
+                  {onRetryPerson1 && (
+                    <button
+                      onClick={onRetryPerson1}
+                      disabled={isRetryingPerson1}
+                      className="underline font-bold cursor-pointer"
+                    >
+                      {isRetryingPerson1 ? "Retrying..." : "Retry"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* PERSON 2 CARD */}
+          <div className="border-2 border-[#111827] rounded-[4px] p-4 bg-[#F7F9FC] shadow-[2px_2px_0px_#080B10] flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-[#DCE3EF]">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-[#647084] uppercase">
+                  PARTICIPANT 2
+                </span>
+                <h4 className="text-sm font-black text-[#080B10]">{person2Name}</h4>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-1.5">
+                {person2Status === "succeeded" || person2ImageUrl ? (
+                  <span className="bg-[#DCFCE7] text-[#16803C] border border-[#16803C] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase flex items-center gap-1">
+                    <Check className="w-2.5 h-2.5" />
+                    <span>Try-On Complete</span>
+                  </span>
+                ) : person2Status === "failed" ? (
+                  <span className="bg-[#FEE2E2] text-[#DC2626] border border-[#DC2626] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase">
+                    Failed
+                  </span>
+                ) : (
+                  <span className="bg-[#FEF3C7] text-[#B45309] border border-[#B45309] text-[9px] font-mono font-bold px-2 py-0.5 rounded-[2px] uppercase">
+                    Processing
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Individual Image Preview */}
+            <div className="relative aspect-[3/4] max-h-[380px] bg-white border border-[#111827] rounded-[2px] overflow-hidden flex items-center justify-center">
+              {person2ImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={person2ImageUrl}
+                  alt={`${person2Name} Outfit Result`}
+                  className="w-full h-full object-contain"
+                />
+              ) : person2SourcePhoto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={person2SourcePhoto}
+                  alt={`${person2Name} Source Photo`}
+                  className="w-full h-full object-contain opacity-70"
+                />
+              ) : (
+                <div className="text-center p-4 text-xs font-mono text-[#647084]">
+                  No photo available for {person2Name}
+                </div>
+              )}
+
+              {/* Full Size Button Overlay */}
+              {(person2ImageUrl || person2SourcePhoto) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setModalImage({
+                      url: (person2ImageUrl || person2SourcePhoto)!,
+                      title: `${person2Name} Individual Outfit`
+                    })
+                  }
+                  className="absolute bottom-2 right-2 bg-white/95 hover:bg-white border border-[#111827] text-[#080B10] px-2 py-1 rounded-[2px] font-mono text-[10px] font-bold flex items-center gap-1 shadow-sm cursor-pointer"
+                >
+                  <Eye className="w-3 h-3 text-[#1764FF]" />
+                  <span>Full Size</span>
+                </button>
+              )}
+            </div>
+
+            {/* Applied Garment Tags & Error State */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-mono text-[#647084] uppercase">Categories:</span>
+                {person2Categories.length > 0 ? (
+                  person2Categories.map((cat) => (
+                    <span
+                      key={cat}
+                      className="bg-white border border-[#111827] text-[#080B10] text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-[2px] uppercase"
+                    >
+                      {cat}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-[10px] font-mono text-[#080B10]">{person2Garment}</span>
+                )}
+              </div>
+
+              {person2Status === "failed" && (
+                <div className="p-2 bg-[#FEE2E2] border border-[#DC2626] rounded-[2px] text-[10px] font-mono text-[#DC2626] flex items-center justify-between">
+                  <span>{person2ErrorMessage || "Virtual try-on error"}</span>
+                  {onRetryPerson2 && (
+                    <button
+                      onClick={onRetryPerson2}
+                      disabled={isRetryingPerson2}
+                      className="underline font-bold cursor-pointer"
+                    >
+                      {isRetryingPerson2 ? "Retrying..." : "Retry"}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* ========================================================= */}
+      {/* FULL-SIZE IMAGE PREVIEW MODAL                             */}
+      {/* ========================================================= */}
+      {modalImage && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="relative max-w-4xl w-full bg-[#080B10] border-2 border-white rounded-[4px] p-3 shadow-2xl flex flex-col max-h-[92vh]">
+            <div className="flex items-center justify-between pb-2 px-2 border-b border-gray-700">
+              <span className="text-xs font-mono font-bold text-white uppercase">
+                {modalImage.title}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModalZoom(modalZoom === 1 ? 1.5 : 1)}
+                  className="text-white hover:text-[#1764FF] p-1 bg-white/10 rounded-[2px] cursor-pointer"
+                  title={modalZoom === 1 ? "Zoom in (1.5x)" : "Reset zoom"}
+                >
+                  {modalZoom === 1 ? <ZoomIn className="w-4 h-4" /> : <ZoomOut className="w-4 h-4" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setModalImage(null);
+                    setModalZoom(1);
+                  }}
+                  className="text-white hover:text-red-400 p-1 cursor-pointer"
+                  title="Close (Esc)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={modalImage.url}
+                alt={modalImage.title}
+                style={{
+                  transform: `scale(${modalZoom})`,
+                  transition: "transform 0.2s ease-out"
+                }}
+                className="max-w-full max-h-[75vh] object-contain"
+              />
+            </div>
+            <div className="pt-2 px-2 flex items-center justify-between border-t border-gray-800">
+              <span className="text-[10px] font-mono text-gray-400">
+                Press ESC or click &times; to exit. Entire portrait silhouette is uncropped.
+              </span>
+              <a
+                href={modalImage.url}
+                download="lookmates-image.png"
+                className="lm-btn-primary !py-1.5 !px-4 text-xs font-bold flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Save Image</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

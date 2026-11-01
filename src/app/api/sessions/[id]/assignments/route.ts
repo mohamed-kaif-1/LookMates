@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { id: sessionId } = await params;
     const body = await request.json();
-    const { participantId, garmentId, role } = body;
+    const { participantId, garmentId, role, categoryKey } = body;
 
     if (!garmentId) {
       return NextResponse.json({ error: "garmentId is required." }, { status: 400 });
@@ -35,39 +35,47 @@ export async function POST(
     }
 
     // Verify garment exists
-    const garment = db.prepare("SELECT * FROM garments WHERE id = ?").get(garmentId);
+    const garment = db.prepare("SELECT * FROM garments WHERE id = ?").get(garmentId) as { category: string } | undefined;
     if (!garment) {
       return NextResponse.json({ error: "Garment not found." }, { status: 404 });
     }
 
-    // If an assignment for this participant with same category already exists, replace or append
-    // Check existing
-    const existing = db.prepare(`
+    const resolvedCategoryKey = categoryKey || garment.category;
+
+    // Check if an assignment for this exact garment already exists
+    const existingSameGarment = db.prepare(`
       SELECT * FROM garment_assignments 
       WHERE session_id = ? AND participant_id = ? AND garment_id = ?
     `).get(sessionId, pId, garmentId);
 
-    if (existing) {
-      // Toggle off / remove if already assigned
+    if (existingSameGarment) {
+      // Toggle off / remove
       db.prepare(`
         DELETE FROM garment_assignments 
         WHERE session_id = ? AND participant_id = ? AND garment_id = ?
       `).run(sessionId, pId, garmentId);
 
-      // Invalidate existing try-on job for this participant
       db.prepare("DELETE FROM tryon_jobs WHERE session_id = ? AND participant_id = ?").run(sessionId, pId);
       db.prepare("DELETE FROM couple_compositions WHERE session_id = ?").run(sessionId);
 
       return NextResponse.json({ success: true, action: "removed" });
     }
 
+    // If an assignment in the SAME category already exists, replace it
+    if (resolvedCategoryKey) {
+      db.prepare(`
+        DELETE FROM garment_assignments 
+        WHERE session_id = ? AND participant_id = ? AND category_key = ?
+      `).run(sessionId, pId, resolvedCategoryKey);
+    }
+
     const assignmentId = `asgn_${uuidv4().substring(0, 8)}`;
     db.prepare(`
-      INSERT INTO garment_assignments (id, session_id, participant_id, garment_id, status, created_at)
-      VALUES (?, ?, ?, ?, 'assigned', ?)
-    `).run(assignmentId, sessionId, pId, garmentId, new Date().toISOString());
+      INSERT INTO garment_assignments (id, session_id, participant_id, garment_id, status, created_at, category_key)
+      VALUES (?, ?, ?, ?, 'assigned', ?, ?)
+    `).run(assignmentId, sessionId, pId, garmentId, new Date().toISOString(), resolvedCategoryKey);
 
-    // Invalidate existing try-on job for this participant so new tryon is run
+    // Invalidate previous try-on job for this participant
     db.prepare("DELETE FROM tryon_jobs WHERE session_id = ? AND participant_id = ?").run(sessionId, pId);
     db.prepare("DELETE FROM couple_compositions WHERE session_id = ?").run(sessionId);
 
@@ -87,7 +95,7 @@ export async function GET(
     const db = getDb();
 
     const assignments = db.prepare(`
-      SELECT ga.id as assignment_id, ga.participant_id, ga.garment_id, ga.status,
+      SELECT ga.id as assignment_id, ga.participant_id, ga.garment_id, ga.status, ga.category_key,
              p.role, p.display_name,
              g.name as garment_name, g.category, g.image_url, g.price, g.color, g.description, g.is_demo
       FROM garment_assignments ga
@@ -100,6 +108,6 @@ export async function GET(
     return NextResponse.json({ assignments });
   } catch (error: unknown) {
     console.error("[GET /api/sessions/[id]/assignments] Error:", error);
-    return NextResponse.json({ error: "Failed to fetch assignments." }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load garment assignments." }, { status: 500 });
   }
 }
